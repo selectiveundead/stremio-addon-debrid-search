@@ -23,14 +23,14 @@ app.use(swStats.getMiddleware({
     version: addonInterface.manifest.version,
 }));
 
-// Rate limiter middleware (unchanged)
-const rateLimiter = rateLimit({
-    windowMs: 120 * 120 * 1000,
-    limit: 1000,
-    standardHeaders: true,
-    legacyHeaders: false,
-    keyGenerator: (req) => requestIp.getClientIp(req)
-});
+// Rate limiter middleware (removed)
+// const rateLimiter = rateLimit({
+//     windowMs: 120 * 120 * 1000,
+//     limit: 1000,
+//     standardHeaders: true,
+//     legacyHeaders: false,
+//     keyGenerator: (req) => requestIp.getClientIp(req)
+// });
 
 // Tune server timeouts for high traffic and keep-alive performance
 try {
@@ -46,7 +46,7 @@ for (const sig of ["SIGINT","SIGTERM"]) {
         setTimeout(() => process.exit(1), 10000).unref();
     });
 }
-app.use(rateLimiter);
+// app.use(rateLimiter);
 
 // VVVV REVERTED: The resolver now performs a simple redirect VVVV
 app.get('/resolve/:debridProvider/:debridApiKey/:url', async (req, res) => {
