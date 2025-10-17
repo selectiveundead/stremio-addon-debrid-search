@@ -2,6 +2,7 @@ import { addonBuilder } from "stremio-addon-sdk"
 import StreamProvider from './lib/stream-provider.js'
 import CatalogProvider from './lib/catalog-provider.js'
 import { getManifest } from './lib/util/manifest.js'
+import { obfuscateSensitive } from './lib/common/torrent-utils.js'
 
 const CACHE_MAX_AGE = parseInt(process.env.CACHE_MAX_AGE) || 1 * 60 // 1 min
 const STALE_REVALIDATE_AGE = 1 * 60 // 1 min
@@ -14,11 +15,22 @@ builder.defineCatalogHandler((args) => {
         const debugArgs = structuredClone(args)
         if (args.config?.DebridApiKey)
             debugArgs.config.DebridApiKey = '*'.repeat(args.config.DebridApiKey.length)
+        if (args.config?.DebridServices && Array.isArray(args.config.DebridServices)) {
+            debugArgs.config.DebridServices = args.config.DebridServices.map(s => ({
+                provider: s.provider,
+                apiKey: s.apiKey ? '*'.repeat(s.apiKey.length) : ''
+            }))
+        }
         console.log("Request for catalog with args: " + JSON.stringify(debugArgs))
 
         // Request to Debrid Search
         if (args.id == 'debridsearch') {
-            if (!((args.config?.DebridProvider && args.config?.DebridApiKey) || args.config?.DebridLinkApiKey)) {
+            const hasValidConfig = (
+                (args.config?.DebridServices && Array.isArray(args.config.DebridServices) && args.config.DebridServices.length > 0) ||
+                (args.config?.DebridProvider && args.config?.DebridApiKey) ||
+                args.config?.DebridLinkApiKey
+            )
+            if (!hasValidConfig) {
                 reject(new Error('Invalid Debrid configuration: Missing configs'))
             }
 
@@ -62,13 +74,23 @@ builder.defineStreamHandler(args => {
         const debugArgs = structuredClone(args)
         if (args.config?.DebridApiKey)
             debugArgs.config.DebridApiKey = '*'.repeat(args.config.DebridApiKey.length)
+        if (args.config?.DebridServices && Array.isArray(args.config.DebridServices)) {
+            debugArgs.config.DebridServices = args.config.DebridServices.map(s => ({
+                provider: s.provider,
+                apiKey: s.apiKey ? '*'.repeat(s.apiKey.length) : ''
+            }))
+        }
         console.log("Request for streams with args: " + JSON.stringify(debugArgs))
 
         switch (args.type) {
             case 'movie':
                 StreamProvider.getMovieStreams(args.config, args.type, args.id)
                     .then(streams => {
-                        console.log("Response streams: " + JSON.stringify(streams))
+                        const keysToObfuscate = [
+                            args.config?.DebridApiKey,
+                            ...(Array.isArray(args.config?.DebridServices) ? args.config.DebridServices.map(s => s.apiKey) : [])
+                        ].filter(Boolean);
+                        console.log("Response streams: " + obfuscateSensitive(JSON.stringify(streams), keysToObfuscate))
                         resolve({
                             streams,
                             ...enrichCacheParams()
@@ -79,7 +101,11 @@ builder.defineStreamHandler(args => {
             case 'series':
                 StreamProvider.getSeriesStreams(args.config, args.type, args.id)
                     .then(streams => {
-                        console.log("Response streams: " + JSON.stringify(streams))
+                        const keysToObfuscate = [
+                            args.config?.DebridApiKey,
+                            ...(Array.isArray(args.config?.DebridServices) ? args.config.DebridServices.map(s => s.apiKey) : [])
+                        ].filter(Boolean);
+                        console.log("Response streams: " + obfuscateSensitive(JSON.stringify(streams), keysToObfuscate))
                         resolve({
                             streams,
                             ...enrichCacheParams()
